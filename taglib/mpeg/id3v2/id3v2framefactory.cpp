@@ -98,9 +98,9 @@ Frame *FrameFactory::createFrame(const ByteVector &origData, Header *tagHeader) 
   // characters.  Also make sure that there is data in the frame.
 
   if(frameID.size() != (version < 3 ? 3 : 4) ||
-     header->frameSize() <= uint(header->dataLengthIndicator() ? 4 : 0) ||
-     header->frameSize() > data.size())
+     header->frameSize() > data.size() - Frame::Header::size(version))
   {
+    debug("FrameFactory::createFrame() -- Invalid frame size " + frameID); 
     delete header;
     return 0;
   }
@@ -118,9 +118,17 @@ Frame *FrameFactory::createFrame(const ByteVector &origData, Header *tagHeader) 
 
   for(ByteVector::ConstIterator it = frameID.begin(); it != frameID.end(); it++) {
     if( (*it < 'A' || *it > 'Z') && (*it < '0' || *it > '9') ) {
-      delete header;
-      return 0;
+      debug("FrameFactory::createFrame() -- Invalid frame name " + frameID);
+      return new UnknownFrame(data, header);
     }
+  }
+
+  // Windows media player writes empty tags even though the
+  // spec states that frames must have at least one byte.
+  // We just ignore it for now.
+  if(header->frameSize() == 0) {
+    debug("Empty frame " + frameID + " even though spec forbids it.");
+    return new UnknownFrame(data, header);
   }
 
   if(version > 3 && (tagHeader->unsynchronisation() || header->unsynchronisation())) {

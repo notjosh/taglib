@@ -698,15 +698,18 @@ void ID3v2::Tag::parse(const ByteVector &origData)
     if(!frame)
       return;
 
-    // Checks to make sure that frame parsed correctly.
+    frameDataPosition += frame->size() + Frame::headerSize(d->header.majorVersion());
 
+    // Checks to make sure that frame parsed correctly.
+    // (windows media player tends to write null byte frames
+    // even though the spec forbids it
+    // We delete those frames because they are mostly broken
+    // (e.g. no null termination)
     if(frame->size() <= 0) {
       delete frame;
-      return;
+    } else {
+      addFrame(frame);
     }
-
-    frameDataPosition += frame->size() + Frame::headerSize(d->header.majorVersion());
-    addFrame(frame);
   }
 }
 
