@@ -47,6 +47,8 @@ namespace TagLib {
     const std::wstring &wstr() const;
     const std::string  &str() const; 
 
+    String toString() const;
+
   private:
     const std::string  m_name;
     const std::wstring m_wname;

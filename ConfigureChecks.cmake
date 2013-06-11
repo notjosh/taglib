@@ -183,6 +183,20 @@ if(NOT HAVE_GCC_BYTESWAP_16 OR NOT HAVE_GCC_BYTESWAP_32 OR NOT HAVE_GCC_BYTESWAP
   endif()
 endif()
 
+# Determine whether your compiler supports some safer version of sprintf.
+
+check_cxx_source_compiles("
+  #include <cstdio>
+  int main() { char buf[20]; snprintf(buf, 20, \"%d\", 1); return 0; }
+" HAVE_SNPRINTF)
+
+if(NOT HAVE_SNPRINTF)
+  check_cxx_source_compiles("
+    #include <cstdio>
+    int main() { char buf[20]; sprintf_s(buf, \"%d\", 1);  return 0; }
+  " HAVE_SPRINTF_S)
+endif()
+
 # Determine whether your compiler supports codecvt.
 
 check_cxx_source_compiles("
@@ -204,6 +218,7 @@ endif()
 
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
+
 find_package(CppUnit)
 if(NOT CppUnit_FOUND AND BUILD_TESTS)
   message(STATUS "CppUnit not found, disabling tests.")

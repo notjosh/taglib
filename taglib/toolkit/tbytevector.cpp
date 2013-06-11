@@ -297,12 +297,29 @@ ulonglong byteSwap<ulonglong>(ulonglong x)
 }
 
 template <class T>
-T toNumber(const ByteVector &v, size_t offset, bool mostSignificantByteFirst)
+T toNumber(const ByteVector &v, size_t offset, size_t length, bool mostSignificantByteFirst)
 {
-  if(offset + sizeof(T) > v.size()) {
-    debug("toNumber<T>() -- offset is out of range. Returning 0.");
+  if(offset >= v.size()) {
+    debug("toNumber<T>() -- No data to convert. Returning 0.");
     return 0;
   }
+
+  length = std::min(length, v.size() - offset);
+
+  T sum = 0;
+  for(size_t i = 0; i < length; i++) {
+    const size_t shift = (mostSignificantByteFirst ? length - 1 - i : i) * 8;
+    sum |= static_cast<T>(static_cast<uchar>(v[offset + i])) << shift;
+  }
+
+  return sum;
+}
+
+template <class T>
+T toNumber(const ByteVector &v, size_t offset, bool mostSignificantByteFirst)
+{
+  if(offset + sizeof(T) > v.size()) 
+    return toNumber<T>(v, offset, v.size() - offset, mostSignificantByteFirst);
 
   // Uses memcpy instead of reinterpret_cast to avoid an alignment exception.
   T tmp;
@@ -317,23 +334,6 @@ T toNumber(const ByteVector &v, size_t offset, bool mostSignificantByteFirst)
     return byteSwap<T>(tmp);
   else
     return tmp;
-}
-
-template <class T>
-T toNumber(const ByteVector &v, size_t offset, size_t length, bool mostSignificantByteFirst)
-{
-  if(offset + length > v.size()) {
-    debug("toNumber<T>() -- offset and/or length is out of range. Returning 0.");
-    return 0;
-  }
-
-  T sum = 0;
-  for(size_t i = 0; i < length; i++) {
-    const size_t shift = (mostSignificantByteFirst ? length - 1 - i : i) * 8;
-    sum |= static_cast<T>(static_cast<uchar>(v[offset + i])) << shift;
-  }
-
-  return sum;
 }
 
 template <class T>
@@ -508,7 +508,6 @@ ByteVector::ByteVector(const ByteVector &v)
 ByteVector::ByteVector(const ByteVector &v, uint offset, uint length)
   : d(new ByteVectorPrivate(v.d, offset, length))
 {
-  d->ref();
 }
 
 ByteVector::ByteVector(char c)
@@ -602,11 +601,11 @@ bool ByteVector::containsAt(const ByteVector &pattern, uint offset, uint pattern
     patternLength = pattern.size();
 
   // do some sanity checking -- all of these things are needed for the search to be valid
-
-  if(offset + patternLength > size() || patternOffset >= pattern.size() || patternLength == 0)
+  const uint compareLength = patternLength - patternOffset;
+  if(offset + compareLength > size() || patternOffset >= pattern.size() || patternLength == 0)    
     return false;
   
-  return (::memcmp(data() + offset, pattern.data() + patternOffset, patternLength - patternOffset) == 0);
+  return (::memcmp(data() + offset, pattern.data() + patternOffset, compareLength) == 0);
 }
 
 bool ByteVector::startsWith(const ByteVector &pattern) const
@@ -729,9 +728,11 @@ TagLib::uint ByteVector::size() const
 
 ByteVector &ByteVector::resize(uint size, char padding)
 {
-  detach();
-  d->data->data.resize(d->offset + size, padding);
-  d->length = size;
+  if(size != d->length) {
+    detach();
+    d->data->data.resize(d->offset + size, padding);
+    d->length = size;
+  }
 
   return *this;
 }
